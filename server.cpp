@@ -8,6 +8,7 @@
 
 QT_USE_NAMESPACE
 
+//! [getIdentifier]
 static QString getIdentifier(QWebSocket *peer)
 {
     return QStringLiteral("%1:%2").arg( peer->peerAddress().toString(), QString::number(peer->peerPort() ) );
@@ -41,7 +42,16 @@ QWebSocketServer* Server::initiateSecureServer()
     sslConfiguration.setLocalCertificate(certificate);
     sslConfiguration.setPrivateKey(sslKey);
     lm_pWebSocketServer->setSslConfiguration(sslConfiguration);
-    qDebug("Done Constructing the m_pWebSocketServer");
+    qDebug("[+] Done Constructing the secure m_pWebSocketServer");
+    return lm_pWebSocketServer;
+}
+
+//! [initiateNonSecureServer]
+QWebSocketServer* Server::initiateNonSecureServer()
+{
+
+    QWebSocketServer *lm_pWebSocketServer = new QWebSocketServer(QStringLiteral("WebSocket Server"),  QWebSocketServer::NonSecureMode, this);
+    qDebug("[+] Done Constructing the non secure m_pWebSocketServer");
     return lm_pWebSocketServer;
 }
 
@@ -55,43 +65,118 @@ Server::Server(quint16 port, bool secure, QObject *parent) :
     }
     else
     {
-       m_pWebSocketServer = new QWebSocketServer(QStringLiteral("WebSocket Server"),  QWebSocketServer::NonSecureMode, this);
+       m_pWebSocketServer = initiateNonSecureServer();
     }
 
     if (m_pWebSocketServer->listen(QHostAddress::Any, port))
     {
-        qDebug() << "Server listening on port" << port;
-        QTextStream(stdout) << "[+] Server listening on port " << port << '\n';
+        qDebug() << "[+] Server listening on port" << port;
+        //QTextStream(stdout) << "[+] Server listening on port " << port << '\n';
         connect(m_pWebSocketServer, &QWebSocketServer::newConnection,
                 this, &Server::onNewConnection);
     }
     else
     {
         QTextStream(stdout) << "[-] Can' listen on port " << port << '\n';
+        qDebug() << m_pWebSocketServer->errorString();
 
     }
+    QTextStream(stdout) << "[+] Server URL " << m_pWebSocketServer->serverUrl().toString() << "\n";
+
 }
 
 //! [Destructor]
 Server::~Server()
 {
-    m_pWebSocketServer->close();
+    if(m_pWebSocketServer->isListening()){
+        m_pWebSocketServer->close();
+    }
+    m_pWebSocketServer->deleteLater();
+    m_pWebSocketServer = NULL;
 }
 //! [Destructor]
+
 
 //! [onNewConnection]
 void Server::onNewConnection()
 {
+
     auto pSocket = m_pWebSocketServer->nextPendingConnection();
-    QTextStream(stdout) <<"[+] "<< getIdentifier(pSocket) << " connected!\n";
+    //qDebug() <<"[+] "<< getIdentifier(pSocket) << " connected!\n";
+    QTextStream(stdout) <<"[+] " << getIdentifier(pSocket) << " connected!\n";
+
     pSocket->setParent(this);
+    pSocket->sendTextMessage("Hello Client " + getIdentifier(pSocket));
     connect(pSocket, &QWebSocket::textMessageReceived, this, &Server::processMessage);
-    connect(pSocket, &QWebSocket::binaryMessageReceived,this, &Server::processBinaryMessage);
     connect(pSocket, &QWebSocket::disconnected , this, &Server::socketDisconnected);
+
+
     m_clients << pSocket;
+    qDebug() << "[INFO] Clients Count ["<< currentClientsCount() << "]\n" ;
+
 }
 
 
+//! [CurentClientsCount]
+int Server::currentClientsCount(){
+    return m_clients.size();
+}
+
+//! [processMessage]
+void Server::processMessage(const QString& message)
+{
+
+    QWebSocket *pSender = qobject_cast<QWebSocket *>(sender());
+    QJsonDocument messageDocument = QJsonDocument::fromJson(message.toUtf8());
+
+    QJsonObject messageJson = messageDocument.object();
+
+
+
+    logTransaction(pSender, messageJson);
+
+    QJsonObject responseJson;
+    responseJson["status"] = "processed";
+    responseJson["server"] = m_pWebSocketServer->serverName();
+
+
+    QJsonDocument responseDocument;
+    responseDocument.setObject(responseJson);
+
+    QString responseMessage = QString::fromUtf8(responseDocument.toJson(QJsonDocument::Compact));
+    logTransaction(pSender, responseMessage);
+
+    for(QWebSocket *pClient : qAsConst(m_clients)){
+
+        // *************************************
+        // don't echo message back to sender
+        // *************************************
+        pClient->sendTextMessage(responseMessage);
+        /*
+        if(pClient != pSender) {
+            pClient->sendTextMessage(responseMessage);
+        }
+        */
+    }
+
+}
+//! [logTransaction]
+
+void Server::logTransaction(QWebSocket *pSender, const QJsonObject& JSON){
+    QJsonDocument answerDocument(JSON);
+    QByteArray data = answerDocument.toJson(QJsonDocument::Compact);
+    QString jsonString(data);
+    QString strJSON(answerDocument.toJson(QJsonDocument::Compact));
+    QTextStream(stdout) <<"[INFO] "<< getIdentifier(pSender) << "\n" << jsonString << "\n";
+
+
+}
+void Server::logTransaction(QWebSocket *pSender, const QString& strJSON){
+
+    QTextStream(stdout) <<"[INFO] "<< getIdentifier(pSender) << "\n" << strJSON << "\n";
+
+
+}
 //! [logMessage]
 void Server::logMessage(QWebSocket *pSender, const QString &message)
 {
@@ -100,62 +185,16 @@ void Server::logMessage(QWebSocket *pSender, const QString &message)
 }
 
 
-
-//! [processBinaryMessage]
-void Server::processBinaryMessage(QByteArray message)
-{
-
-    QWebSocket *pSender = qobject_cast<QWebSocket *>(sender());
-    logMessage(pSender, message);
-    for(QWebSocket *pClient : qAsConst(m_clients)){
-
-        // *************************************
-        // don't echo message back to sender
-        // *************************************
-
-        if(pClient != pSender) {
-            pClient->sendBinaryMessage(message);
-        }
-    }
-
-}
-
-
-
-
-
-
-//! [processMessage]
-void Server::processMessage(const QString &message)
-{
-
-    QWebSocket *pSender = qobject_cast<QWebSocket *>(sender());
-    logMessage(pSender, message);
-    for(QWebSocket *pClient : qAsConst(m_clients)){
-
-        // *************************************
-        // don't echo message back to sender
-        // *************************************
-
-        if(pClient != pSender) {
-            pClient->sendTextMessage(message);
-        }
-    }
-
-}
-
-
-
 //! [onSslErrors]
 void Server::onSslErrors(const QList<QSslError> &errors)
 {
-    qDebug() << "SSL errors occurred";
-    QTextStream(stdout) <<"[-] "<<"SSL errors occurred!\n";
+    qDebug() << "[-] SSL errors occurred";
+    //QTextStream(stdout) <<"[-] SSL errors occurred!\n";
 
     foreach( const QSslError &error, errors )
     {
-          qDebug() << "SSL Error: " << error.errorString();
-          QTextStream(stdout) <<"[-] "<<"SSL Error" << error.errorString() << "\n";
+          qDebug() << "[-] SSL Error: " << error.errorString();
+          //QTextStream(stdout) <<"[-] "<<"SSL Error" << error.errorString() << "\n";
 
     }
 
