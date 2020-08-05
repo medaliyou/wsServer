@@ -11,3 +11,8 @@
 ##### `$ make`
 
 
+## Either run the Server in secure mode WSS or normal WS
+### To do so, make the changes in the constructor of the Server class by changing the value of the boolean argument
+#### constructor `Server server(portNumber,secure);`
+## To test connectopn to the server, i provided the client.html(ws) or sslClient.html(wss) 
+
