@@ -30,6 +30,7 @@ private slots:
 
     QWebSocketServer* initiateSecureServer();
     QWebSocketServer* initiateNonSecureServer();
+    QJsonObject prepareJSONfromString(const QString message);
 
     //! To do
     //! Add json data exchange 0x1

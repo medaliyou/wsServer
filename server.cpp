@@ -122,36 +122,37 @@ int Server::currentClientsCount(){
     return m_clients.size();
 }
 
+
+
 //! [processMessage]
 void Server::processMessage(const QString& message)
 {
 
     QWebSocket *pSender = qobject_cast<QWebSocket *>(sender());
     QJsonDocument messageDocument = QJsonDocument::fromJson(message.toUtf8());
-
     QJsonObject messageJson = messageDocument.object();
-
-
-
     logTransaction(pSender, messageJson);
 
-    QJsonObject responseJson;
-    responseJson["status"] = "processed";
-    responseJson["server"] = m_pWebSocketServer->serverName();
 
 
     QJsonDocument responseDocument;
+    QJsonObject responseJson = prepareJSONfromString("OK " + (QString)pSender->peerName() );
     responseDocument.setObject(responseJson);
-
     QString responseMessage = QString::fromUtf8(responseDocument.toJson(QJsonDocument::Compact));
+
+
     logTransaction(pSender, responseMessage);
 
+/*
+    QJsonObject responseMessage = prepareJSONfromString("OK");
+*/
     for(QWebSocket *pClient : qAsConst(m_clients)){
 
         // *************************************
         // don't echo message back to sender
         // *************************************
         pClient->sendTextMessage(responseMessage);
+
         /*
         if(pClient != pSender) {
             pClient->sendTextMessage(responseMessage);
@@ -160,6 +161,25 @@ void Server::processMessage(const QString& message)
     }
 
 }
+
+
+
+
+//! [prepareJSONfromString]
+QJsonObject Server::prepareJSONfromString(const QString message){
+    // This method is needed to convert Server Responses into JSON
+    // To ensure it's availibility with the FrontEnd WebSocket API
+    QJsonObject responseJson;
+    responseJson["server"] = m_pWebSocketServer->serverName();
+    responseJson["status"] = "processed";
+    responseJson["response_message"] = message;
+
+    return responseJson;
+
+}
+
+
+
 //! [logTransaction]
 
 void Server::logTransaction(QWebSocket *pSender, const QJsonObject& JSON){
@@ -213,8 +233,6 @@ void Server::socketDisconnected()
         pClient->deleteLater();
     }
 }
-
-
 
 
 
