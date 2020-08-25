@@ -12,7 +12,7 @@
 
 
 ## Either run the Server in secure mode WSS or normal WS
-### To do so, make the changes in the constructor of the Server class by changing the value of the boolean argument
+### To do so, make the changes in the constructor of the Server class (src/main.cpp) by changing the value of the boolean argument
 #### constructor `Server server(portNumber,secure);`
 ## To test connection to the server, i've provided the client.html (ws) or sslClient.html (wss) 
 
