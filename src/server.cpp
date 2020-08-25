@@ -1,4 +1,4 @@
-#include "server.h"
+#include "inc/server.h"
 #include <QtCore>
 #include <QtWebSockets>
 #include <QtCore/QDebug>
@@ -23,7 +23,7 @@ QWebSocketServer* Server::initiateSecureServer()
                                               QWebSocketServer::SecureMode,
                                               this);
     QSslConfiguration sslConfiguration;
-    QString path = "/root/dev/QtDev/wsServer/";
+    QString path = "/root/dev/QtDev/wsServer/ssl/";
     QString certPath = path + "localhost.cert";
     QString keyPath = path + "localhost.key";
     QFile certFile(certPath);
@@ -79,6 +79,7 @@ Server::Server(quint16 port, bool secure, QObject *parent) :
     {
         QTextStream(stdout) << "[-] Can' listen on port " << port << '\n';
         qDebug() << m_pWebSocketServer->errorString();
+        exit(EXIT_FAILURE);
 
     }
     QTextStream(stdout) << "[+] Server URL " << m_pWebSocketServer->serverUrl().toString() << "\n";
